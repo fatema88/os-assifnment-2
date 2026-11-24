@@ -3,7 +3,7 @@ import java.util.*;
 
 public class Tier3 {
 
-    private static final int AGING_INTERVAL = 4;
+    public static final int AGING_INTERVAL = 4;
 
     public void applyAging(Tier2 tier2, int currentTime) {
 

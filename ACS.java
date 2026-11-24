@@ -1,9 +1,6 @@
-
 import java.util.*;
 
 public class ACS {
-
-    private static final int AGING_INTERVAL = 4;
 
     public static void runACS(
             List<Process> inputProcesses,
@@ -11,20 +8,26 @@ public class ACS {
             int contextSwitch) {
 
         if (quantum <= 0) {
-            throw new IllegalArgumentException(
-                    "Quantum must be positive.");
+            throw new IllegalArgumentException("Quantum must be positive.");
         }
 
         if (contextSwitch < 0) {
-            throw new IllegalArgumentException(
-                    "Context switch time cannot be negative.");
+            throw new IllegalArgumentException("Context switch time cannot be negative.");
         }
+
+        for (Process p : inputProcesses) {
+            if (p.burstTime <= 0) {
+                throw new IllegalArgumentException(
+                        "Burst time must be positive for " + p.name);
+            }
+        }
+
         // Create fresh copies for this simulation
         List<Process> processes = new ArrayList<>();
-
         for (Process p : inputProcesses) {
             processes.add(new Process(p));
         }
+
         // Create scheduling queues
         Tier1 tier1 = new Tier1();
         Tier2 tier2 = new Tier2();
@@ -37,14 +40,16 @@ public class ACS {
         Process lastExecutedProcess = null;
 
         int activeTier = 0;
-        int quantumUsed = 0;
+        int sliceRemaining = 0;
+        boolean isFinished = false;
+        boolean isDemoted = false;
 
         int csRemaining = 0;
 
         System.out.println("\n========== ACS SCHEDULING ==========");
         System.out.println("Quantum = " + quantum);
         System.out.println("Context Switch = " + contextSwitch);
-        System.out.println("Aging Interval = " + AGING_INTERVAL);
+        System.out.println("Aging Interval = " + Tier3.AGING_INTERVAL);
 
         // Main scheduling loop
         while (completed < processes.size()) {
@@ -62,34 +67,15 @@ public class ACS {
             tier3.applyAging(tier2, currentTime);
             tier3.printAgingDetails(tier2, currentTime);
 
-            // Handle an ongoing Context Switch
-            if (csRemaining > 0) {
-                printQueuesState(currentTime, tier1, tier2);
-                System.out.println(
-                        "Time " + currentTime +
-                                " -> " + (currentTime + 1) +
-                                " : [Context Switch]");
-                csRemaining--;
-                currentTime++;
-                if (csRemaining == 0) {
-                    lastExecutedProcess = null;
-                }
-                continue;
-            }
-
-            // Select a process if the CPU is free
-            if (activeProcess == null) {
-
+            // Select a process if CPU is free and not in a Context Switch
+            if (activeProcess == null && csRemaining == 0) {
                 Process nextProcess = null;
                 int nextTier = 0;
 
                 if (!tier1.isEmpty()) {
-
                     nextProcess = tier1.peekProcess();
                     nextTier = 1;
-
                 } else if (!tier2.isEmpty()) {
-
                     nextProcess = tier2.peekProcess();
                     nextTier = 2;
                 }
@@ -116,79 +102,70 @@ public class ACS {
                                     lastExecutedProcess.name +
                                     " to " + nextProcess.name);
                     csRemaining = contextSwitch;
-                    printQueuesState(currentTime, tier1, tier2);
-                    System.out.println(
-                            "Time " + currentTime +
-                                    " -> " + (currentTime + 1) +
-                                    " : [Context Switch]");
-                    csRemaining--;
-                    currentTime++;
-                    if (csRemaining == 0) {
-                        lastExecutedProcess = null;
-                    }
-                    continue;
-                }
-
-                // Remove the selected process from its queue
-                if (nextTier == 1) {
-                    activeProcess = tier1.pollNext();
                 } else {
-                    activeProcess = tier2.pollNext();
+                    // Delegate execution calculations to Tier1 or Tier2
+                    if (nextTier == 1) {
+                        Tier1.SliceResult result = tier1.executeNext(quantum, currentTime);
+                        activeProcess = result.process;
+                        sliceRemaining = result.executionTime;
+                        isFinished = result.finished;
+                        isDemoted = result.demoted;
+                    } else {
+                        activeProcess = tier2.executeNext(currentTime);
+                        sliceRemaining = activeProcess.finishTime - currentTime;
+                        isFinished = true;
+                        isDemoted = false;
+                    }
+                    activeTier = nextTier;
                 }
-                activeTier = nextTier;
-                quantumUsed = 0;
             }
 
-            // Record the first execution time
-            if (activeProcess.startTime == -1) {
-                activeProcess.startTime = currentTime;
-                activeProcess.responseTime = currentTime - activeProcess.arrivalTime;
+            // Handle an ongoing Context Switch (single unified block)
+            if (csRemaining > 0) {
+                printQueuesState(currentTime, tier1, tier2);
+                System.out.println(
+                        "Time " + currentTime +
+                                " -> " + (currentTime + 1) +
+                                " : [Context Switch]");
+                csRemaining--;
+                currentTime++;
+                if (csRemaining == 0) {
+                    lastExecutedProcess = null;
+                }
+                continue;
             }
 
-            // Execute one time unit
+            // Execute one time unit of the active slice
             printQueuesState(currentTime, tier1, tier2);
+            int displayRemaining = activeProcess.remainingTime + sliceRemaining - 1;
             System.out.println(
                     "Time " + currentTime +
                             " -> " + (currentTime + 1) +
                             " : Running " + activeProcess.name +
                             " [Tier " + activeTier + "]" +
-                            " (Remaining: " +
-                            (activeProcess.remainingTime - 1) + ")");
-            activeProcess.remainingTime--;
-            quantumUsed++;
+                            " (Remaining: " + displayRemaining + ")");
+
+            sliceRemaining--;
             lastExecutedProcess = activeProcess;
             currentTime++;
 
-            // Check if the process has completed
-            if (activeProcess.remainingTime == 0) {
-                completed++;
-                activeProcess.finishTime = currentTime;
-                activeProcess.turnaroundTime = activeProcess.finishTime -
-                        activeProcess.arrivalTime;
-                activeProcess.waitingTime = activeProcess.turnaroundTime -
-                        activeProcess.burstTime;
-                System.out.println(
-                        "   -> " + activeProcess.name +
-                                " completed at Time " + currentTime);
+            // When the current slice ends, finalize completion or demotion
+            if (sliceRemaining == 0) {
+                if (isFinished) {
+                    completed++;
+                    System.out.println(
+                            "   -> " + activeProcess.name +
+                                    " completed at Time " + currentTime);
+                } else if (isDemoted) {
+                    System.out.println(
+                            "   -> Demoting " +
+                                    activeProcess.name +
+                                    " from Tier 1 to Tier 2 at Time " +
+                                    currentTime);
+                    tier2.addProcess(activeProcess, currentTime);
+                }
                 activeProcess = null;
                 activeTier = 0;
-                quantumUsed = 0;
-            }
-
-            // Demote Tier 1 process when Quantum expires
-            else if (activeTier == 1 &&
-                    quantumUsed == quantum) {
-                System.out.println(
-                        "   -> Demoting " +
-                                activeProcess.name +
-                                " from Tier 1 to Tier 2 at Time " +
-                                currentTime);
-                tier2.addProcess(
-                        activeProcess,
-                        currentTime);
-                activeProcess = null;
-                activeTier = 0;
-                quantumUsed = 0;
             }
         }
 
@@ -270,7 +247,6 @@ public class ACS {
                 "--------------------------------------------------------------");
 
         for (Process p : processes) {
-
             totalWaiting += p.waitingTime;
             totalTurnaround += p.turnaroundTime;
             totalResponse += p.responseTime;

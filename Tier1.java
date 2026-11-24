@@ -67,11 +67,6 @@ public class Tier1 {
         }
     }
 
-    // my edit
-    public Process pollNext() {
-        return queue.poll();
-    }
-
     public List<Process> getProcesses() {
         return new ArrayList<>(queue);
     }
