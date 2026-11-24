@@ -1,28 +1,146 @@
-
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Scanner;
 
 public class Main {
+
+        private static final Scanner scanner = new Scanner(System.in);
+
         public static void main(String[] args) {
-                // ---------------- TEST CASE 1: SJF ----------------
 
-                System.out.println(">>> TEST CASE 1 SJF<<<");
+                System.out.println("======================================");
+                System.out.println("     CLOUD-CLUSTER CPU SCHEDULER");
+                System.out.println("======================================");
 
-                List<Process> testCase1 = Arrays.asList(
-                                new Process("P1", 0, 4),
-                                new Process("P2", 1, 7),
-                                new Process("P3", 3, 2));
+                while (true) {
 
-                PreemptiveSJF.runSJF(testCase1, 0);
+                        System.out.println("\n========== MAIN MENU ==========");
+                        System.out.println("1. Run Preemptive SJF");
+                        System.out.println("2. Run Adaptive Container Scheduler (ACS)");
+                        System.out.println("3. Run Both Algorithms");
+                        System.out.println("0. Exit");
+                        System.out.print("Choose an option: ");
 
-                // ---------------- TEST CASE 2: SJF ----------------
+                        int choice = readInt();
 
-                System.out.println(">>> TEST CASE 2 SJF<<<");
+                        if (choice == 0) {
+                                System.out.println("Program terminated.");
+                                break;
+                        }
 
-                List<Process> testCase2 = Arrays.asList(
-                                new Process("P1", 0, 5),
-                                new Process("P2", 1, 6),
-                                new Process("P3", 4, 4));
+                        if (choice < 1 || choice > 3) {
+                                System.out.println("Invalid choice. Try again.");
+                                continue;
+                        }
 
-                PreemptiveSJF.runSJF(testCase2, 1);
+                        // Read processes
+                        List<Process> processes = readProcesses();
+
+                        // Read Context Switching
+                        System.out.print("\nEnter Context Switching Time: ");
+                        int contextSwitch = readNonNegativeInt();
+
+                        if (choice == 1) {
+
+                                System.out.println("\nRunning Preemptive SJF...");
+                                PreemptiveSJF.runSJF(processes, contextSwitch);
+
+                        } else if (choice == 2) {
+
+                                System.out.print("Enter Time Quantum: ");
+                                int quantum = readPositiveInt();
+
+                                System.out.println("\nRunning ACS...");
+                                ACS.runACS(processes, quantum, contextSwitch);
+
+                        } else {
+
+                                System.out.print("\nEnter Time Quantum for ACS: ");
+                                int quantum = readPositiveInt();
+
+                                System.out.println("\n========== SJF RESULTS ==========");
+                                PreemptiveSJF.runSJF(processes, contextSwitch);
+
+                                System.out.println("\n========== ACS RESULTS ==========");
+                                ACS.runACS(processes, quantum, contextSwitch);
+                        }
+                }
+
+                scanner.close();
+        }
+
+        // Read process information from the user
+        private static List<Process> readProcesses() {
+
+                List<Process> processes = new ArrayList<>();
+
+                System.out.print("\nEnter number of processes: ");
+                int numberOfProcesses = readPositiveInt();
+
+                for (int i = 0; i < numberOfProcesses; i++) {
+
+                        System.out.println("\nProcess P" + (i + 1));
+
+                        String name = "P" + (i + 1);
+
+                        System.out.print("Arrival Time: ");
+                        int arrivalTime = readNonNegativeInt();
+
+                        System.out.print("Burst Time: ");
+                        int burstTime = readPositiveInt();
+
+                        System.out.print("Initial Priority: ");
+                        int priority = readPositiveInt();
+
+                        processes.add(
+                                        new Process(name, arrivalTime, burstTime, priority));
+                }
+
+                return processes;
+        }
+
+        // Read any integer
+        private static int readInt() {
+
+                while (!scanner.hasNextInt()) {
+                        System.out.print("Please enter a valid integer: ");
+                        scanner.next();
+                }
+
+                return scanner.nextInt();
+        }
+
+        // Read a non-negative integer
+        private static int readNonNegativeInt() {
+
+                int value;
+
+                while (true) {
+
+                        value = readInt();
+
+                        if (value >= 0) {
+                                return value;
+                        }
+
+                        System.out.print("Value cannot be negative. Try again: ");
+                }
+        }
+
+        // Read a positive integer
+        private static int readPositiveInt() {
+
+                int value;
+
+                while (true) {
+
+                        value = readInt();
+
+                        if (value > 0) {
+                                return value;
+                        }
+
+                        System.out.print("Value must be greater than zero. Try again: ");
+                }
         }
 }

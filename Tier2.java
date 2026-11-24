@@ -1,4 +1,3 @@
-
 import java.util.PriorityQueue;
 import java.util.Comparator;
 import java.util.List;
@@ -52,9 +51,18 @@ public class Tier2 {
         return tier2Queue.peek();
     }
 
+    // public List<Process> getProcesses() {
+    // List<Process> list = new ArrayList<>(tier2Queue);
+    // list.sort(Comparator.comparingInt(p -> p.tier2EntryTime));
+    // return list;
+    // }
     public List<Process> getProcesses() {
         List<Process> list = new ArrayList<>(tier2Queue);
-        list.sort(Comparator.comparingInt(p -> p.tier2EntryTime));
+
+        list.sort(
+                Comparator.comparingInt((Process p) -> p.priority)
+                        .thenComparingInt(p -> p.tier2EntryTime));
+
         return list;
     }
 
