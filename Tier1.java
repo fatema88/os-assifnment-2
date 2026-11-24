@@ -58,12 +58,21 @@ public class Tier1 {
         boolean demoted;
 
         public SliceResult(Process process, int executionTime,
-                           boolean finished, boolean demoted) {
+                boolean finished, boolean demoted) {
 
             this.process = process;
             this.executionTime = executionTime;
             this.finished = finished;
             this.demoted = demoted;
         }
+    }
+
+    // my edit
+    public Process pollNext() {
+        return queue.poll();
+    }
+
+    public List<Process> getProcesses() {
+        return new ArrayList<>(queue);
     }
 }
