@@ -51,6 +51,10 @@ public class Tier2 {
         return tier2Queue.peek();
     }
 
+    public boolean containsProcess(Process p) {
+        return tier2Queue.contains(p);
+    }
+
     // public List<Process> getProcesses() {
     // List<Process> list = new ArrayList<>(tier2Queue);
     // list.sort(Comparator.comparingInt(p -> p.tier2EntryTime));

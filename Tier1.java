@@ -16,6 +16,10 @@ public class Tier1 {
         return queue.peek();
     }
 
+    public boolean containsProcess(Process p) {
+        return queue.contains(p);
+    }
+
     public SliceResult executeNext(int quantum, int currentTime) {
 
         if (quantum <= 0) {

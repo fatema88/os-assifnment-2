@@ -28,6 +28,21 @@ public class Tier3 {
         }
     }
 
+    public int getWaitedTime(Process p, int currentTime) {
+        if (p.tier2EntryTime == -1) {
+            return 0;
+        }
+        return Math.max(0, currentTime - p.tier2EntryTime);
+    }
+
+    public int getAgingBonus(Process p, int currentTime) {
+        return getWaitedTime(p, currentTime) / AGING_INTERVAL;
+    }
+
+    public List<Process> getMonitoredProcesses(Tier2 tier2) {
+        return tier2.getProcesses();
+    }
+
     public void printAgingDetails(Tier2 tier2, int currentTime) {
 
         List<Process> processes = tier2.getProcesses();

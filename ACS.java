@@ -22,13 +22,11 @@ public class ACS {
             }
         }
 
-        // Create fresh copies for this simulation
         List<Process> processes = new ArrayList<>();
         for (Process p : inputProcesses) {
             processes.add(new Process(p));
         }
 
-        // Create scheduling queues
         Tier1 tier1 = new Tier1();
         Tier2 tier2 = new Tier2();
         Tier3 tier3 = new Tier3();
@@ -51,7 +49,6 @@ public class ACS {
         System.out.println("Context Switch = " + contextSwitch);
         System.out.println("Aging Interval = " + Tier3.AGING_INTERVAL);
 
-        // Main scheduling loop
         while (completed < processes.size()) {
             for (Process p : processes) {
                 if (p.arrivalTime == currentTime) {
@@ -63,11 +60,9 @@ public class ACS {
                 }
             }
 
-            // Apply Aging and print details
             tier3.applyAging(tier2, currentTime);
             tier3.printAgingDetails(tier2, currentTime);
 
-            // Select a process if CPU is free and not in a Context Switch
             if (activeProcess == null && csRemaining == 0) {
                 Process nextProcess = null;
                 int nextTier = 0;
@@ -80,8 +75,10 @@ public class ACS {
                     nextTier = 2;
                 }
 
-                // No process is ready
                 if (nextProcess == null) {
+                    printHeuristicDemotionMatrix(
+                            currentTime, processes, tier1, tier2,
+                            null, 0, 0, false);
                     printQueuesState(currentTime, tier1, tier2);
                     System.out.println(
                             "Time " + currentTime +
@@ -92,7 +89,6 @@ public class ACS {
                     continue;
                 }
 
-                // Check whether a Context Switch is needed
                 if (lastExecutedProcess != null &&
                         lastExecutedProcess != nextProcess &&
                         contextSwitch > 0) {
@@ -103,7 +99,6 @@ public class ACS {
                                     " to " + nextProcess.name);
                     csRemaining = contextSwitch;
                 } else {
-                    // Delegate execution calculations to Tier1 or Tier2
                     if (nextTier == 1) {
                         Tier1.SliceResult result = tier1.executeNext(quantum, currentTime);
                         activeProcess = result.process;
@@ -120,8 +115,10 @@ public class ACS {
                 }
             }
 
-            // Handle an ongoing Context Switch (single unified block)
             if (csRemaining > 0) {
+                printHeuristicDemotionMatrix(
+                        currentTime, processes, tier1, tier2,
+                        null, 0, 0, true);
                 printQueuesState(currentTime, tier1, tier2);
                 System.out.println(
                         "Time " + currentTime +
@@ -135,7 +132,9 @@ public class ACS {
                 continue;
             }
 
-            // Execute one time unit of the active slice
+            printHeuristicDemotionMatrix(
+                    currentTime, processes, tier1, tier2,
+                    activeProcess, activeTier, sliceRemaining, false);
             printQueuesState(currentTime, tier1, tier2);
             int displayRemaining = activeProcess.remainingTime + sliceRemaining - 1;
             System.out.println(
@@ -149,7 +148,6 @@ public class ACS {
             lastExecutedProcess = activeProcess;
             currentTime++;
 
-            // When the current slice ends, finalize completion or demotion
             if (sliceRemaining == 0) {
                 if (isFinished) {
                     completed++;
@@ -169,13 +167,123 @@ public class ACS {
             }
         }
 
+        printHeuristicDemotionMatrix(
+                currentTime, processes, tier1, tier2,
+                null, 0, 0, false);
         System.out.println(
                 "\nTime " + currentTime +
                         " : Tier 1: [Empty] | Tier 2: [Empty]");
         printResults(processes);
     }
 
-    // Print the current state of Tier 1 and Tier 2
+    private static void printHeuristicDemotionMatrix(
+            int time,
+            List<Process> processes,
+            Tier1 tier1,
+            Tier2 tier2,
+            Process activeProcess,
+            int activeTier,
+            int sliceRemaining,
+            boolean isContextSwitch) {
+
+        System.out.println("\n=== Heuristic Demotion Matrix (Time Step = " + time + ") ===");
+        System.out.printf(
+                "%-10s | %-15s | %-12s | %-18s | %-12s | %-55s\n",
+                "Process",
+                "Remaining Burst",
+                "Current Tier",
+                "Effective Priority",
+                "Status",
+                "Demotion & Aging Info");
+        System.out.println(
+                "---------------------------------------------------------------------------------------------------------------------------------------");
+
+        for (Process p : processes) {
+            int remBurst;
+            String currentTierStr;
+            String priorityStr;
+            String statusStr;
+            List<String> notes = new ArrayList<>();
+
+            boolean isCompleted = (p.finishTime > 0 && p.finishTime <= time);
+            boolean isNotArrived = (p.arrivalTime > time);
+
+            if (isNotArrived) {
+                remBurst = p.burstTime;
+                currentTierStr = "-";
+                priorityStr = "-";
+                statusStr = "Not Arrived";
+            } else if (isCompleted) {
+                remBurst = 0;
+                currentTierStr = "-";
+                priorityStr = "-";
+                statusStr = "Completed";
+            } else if (p == activeProcess) {
+                remBurst = p.remainingTime + sliceRemaining;
+                currentTierStr = "Tier " + activeTier;
+                priorityStr = String.valueOf(p.priority);
+                statusStr = "Running";
+
+                if (activeTier == 2) {
+                    notes.add("Demoted");
+                    int appliedBonus = p.initialPriority - p.priority;
+                    if (appliedBonus > 0) {
+                        notes.add("Aged (+" + appliedBonus + ", Base: " + p.initialPriority + ")");
+                    }
+                }
+            } else if (tier1.containsProcess(p)) {
+                remBurst = p.remainingTime;
+                currentTierStr = "Tier 1";
+                priorityStr = String.valueOf(p.priority);
+                statusStr = "Ready";
+                if (isContextSwitch) {
+                    notes.add("Context Switch");
+                }
+            } else if (tier2.containsProcess(p)) {
+                remBurst = p.remainingTime;
+                currentTierStr = "Tier 2";
+                priorityStr = String.valueOf(p.priority);
+                statusStr = "Waiting";
+
+                if (p.tier2EntryTime == time) {
+                    notes.add("Demoted (T1 -> T2)");
+                } else {
+                    notes.add("Demoted");
+                }
+
+                int appliedBonus = p.initialPriority - p.priority;
+                if (appliedBonus > 0) {
+                    notes.add("Aged (+" + appliedBonus + ", Base: " + p.initialPriority + ")");
+                } else {
+                    notes.add("Tier 3 Aging (+0)");
+                }
+
+                if (isContextSwitch) {
+                    notes.add("Context Switch");
+                }
+            } else {
+                remBurst = p.remainingTime;
+                currentTierStr = "-";
+                priorityStr = String.valueOf(p.priority);
+                statusStr = "Waiting";
+            }
+
+            String notesStr = notes.isEmpty() ? "-" : String.join(" | ", notes);
+
+            System.out.printf(
+                    "%-10s | %-15d | %-12s | %-18s | %-12s | %-55s\n",
+                    p.name,
+                    remBurst,
+                    currentTierStr,
+                    priorityStr,
+                    statusStr,
+                    notesStr);
+        }
+
+        System.out.println(
+                "---------------------------------------------------------------------------------------------------------------------------------------");
+    }
+
     private static void printQueuesState(
             int time,
             Tier1 tier1,
@@ -226,7 +334,6 @@ public class ACS {
                         " | Tier 2: " + t2);
     }
 
-    // Print final scheduling metrics
     private static void printResults(List<Process> processes) {
         double totalWaiting = 0;
         double totalTurnaround = 0;
