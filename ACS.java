@@ -1,4 +1,5 @@
 import java.util.*;
+import java.io.PrintStream;
 
 public class ACS {
 
@@ -6,6 +7,14 @@ public class ACS {
             List<Process> inputProcesses,
             int quantum,
             int contextSwitch) {
+        runACS(inputProcesses, quantum, contextSwitch, System.out);
+    }
+
+    public static void runACS(
+            List<Process> inputProcesses,
+            int quantum,
+            int contextSwitch,
+            PrintStream out) {
 
         if (quantum <= 0) {
             throw new IllegalArgumentException("Quantum must be positive.");
@@ -44,16 +53,16 @@ public class ACS {
 
         int csRemaining = 0;
 
-        System.out.println("\n========== ACS SCHEDULING ==========");
-        System.out.println("Quantum = " + quantum);
-        System.out.println("Context Switch = " + contextSwitch);
-        System.out.println("Aging Interval = " + Tier3.AGING_INTERVAL);
+        out.println("\n========== ACS SCHEDULING ==========");
+        out.println("Quantum = " + quantum);
+        out.println("Context Switch = " + contextSwitch);
+        out.println("Aging Interval = " + Tier3.AGING_INTERVAL);
 
         while (completed < processes.size()) {
             for (Process p : processes) {
                 if (p.arrivalTime == currentTime) {
                     tier1.addProcess(p);
-                    System.out.println(
+                    out.println(
                             "\nTime " + currentTime +
                                     ": " + p.name +
                                     " arrived -> Tier 1");
@@ -78,9 +87,9 @@ public class ACS {
                 if (nextProcess == null) {
                     printHeuristicDemotionMatrix(
                             currentTime, processes, tier1, tier2,
-                            null, 0, 0, false);
-                    printQueuesState(currentTime, tier1, tier2);
-                    System.out.println(
+                            null, 0, 0, false, out);
+                    printQueuesState(currentTime, tier1, tier2, out);
+                    out.println(
                             "Time " + currentTime +
                                     " -> " + (currentTime + 1) +
                                     " : [IDLE]");
@@ -92,7 +101,7 @@ public class ACS {
                 if (lastExecutedProcess != null &&
                         lastExecutedProcess != nextProcess &&
                         contextSwitch > 0) {
-                    System.out.println(
+                    out.println(
                             "\nTime " + currentTime +
                                     ": Context switch from " +
                                     lastExecutedProcess.name +
@@ -118,9 +127,9 @@ public class ACS {
             if (csRemaining > 0) {
                 printHeuristicDemotionMatrix(
                         currentTime, processes, tier1, tier2,
-                        null, 0, 0, true);
-                printQueuesState(currentTime, tier1, tier2);
-                System.out.println(
+                        null, 0, 0, true, out);
+                printQueuesState(currentTime, tier1, tier2, out);
+                out.println(
                         "Time " + currentTime +
                                 " -> " + (currentTime + 1) +
                                 " : [Context Switch]");
@@ -134,10 +143,10 @@ public class ACS {
 
             printHeuristicDemotionMatrix(
                     currentTime, processes, tier1, tier2,
-                    activeProcess, activeTier, sliceRemaining, false);
-            printQueuesState(currentTime, tier1, tier2);
+                    activeProcess, activeTier, sliceRemaining, false, out);
+            printQueuesState(currentTime, tier1, tier2, out);
             int displayRemaining = activeProcess.remainingTime + sliceRemaining - 1;
-            System.out.println(
+            out.println(
                     "Time " + currentTime +
                             " -> " + (currentTime + 1) +
                             " : Running " + activeProcess.name +
@@ -151,11 +160,11 @@ public class ACS {
             if (sliceRemaining == 0) {
                 if (isFinished) {
                     completed++;
-                    System.out.println(
+                    out.println(
                             "   -> " + activeProcess.name +
                                     " completed at Time " + currentTime);
                 } else if (isDemoted) {
-                    System.out.println(
+                    out.println(
                             "   -> Demoting " +
                                     activeProcess.name +
                                     " from Tier 1 to Tier 2 at Time " +
@@ -169,11 +178,11 @@ public class ACS {
 
         printHeuristicDemotionMatrix(
                 currentTime, processes, tier1, tier2,
-                null, 0, 0, false);
-        System.out.println(
+                null, 0, 0, false, out);
+        out.println(
                 "\nTime " + currentTime +
                         " : Tier 1: [Empty] | Tier 2: [Empty]");
-        printResults(processes);
+        printResults(processes, out);
     }
 
     private static void printHeuristicDemotionMatrix(
@@ -184,10 +193,11 @@ public class ACS {
             Process activeProcess,
             int activeTier,
             int sliceRemaining,
-            boolean isContextSwitch) {
+            boolean isContextSwitch,
+            PrintStream out) {
 
-        System.out.println("\n=== Heuristic Demotion Matrix (Time Step = " + time + ") ===");
-        System.out.printf(
+        out.println("\n=== Heuristic Demotion Matrix (Time Step = " + time + ") ===");
+        out.printf(
                 "%-10s | %-15s | %-12s | %-18s | %-12s | %-55s\n",
                 "Process",
                 "Remaining Burst",
@@ -195,7 +205,7 @@ public class ACS {
                 "Effective Priority",
                 "Status",
                 "Demotion & Aging Info");
-        System.out.println(
+        out.println(
                 "---------------------------------------------------------------------------------------------------------------------------------------");
 
         for (Process p : processes) {
@@ -270,7 +280,7 @@ public class ACS {
 
             String notesStr = notes.isEmpty() ? "-" : String.join(" | ", notes);
 
-            System.out.printf(
+            out.printf(
                     "%-10s | %-15d | %-12s | %-18s | %-12s | %-55s\n",
                     p.name,
                     remBurst,
@@ -280,14 +290,15 @@ public class ACS {
                     notesStr);
         }
 
-        System.out.println(
+        out.println(
                 "---------------------------------------------------------------------------------------------------------------------------------------");
     }
 
     private static void printQueuesState(
             int time,
             Tier1 tier1,
-            Tier2 tier2) {
+            Tier2 tier2,
+            PrintStream out) {
 
         StringBuilder t1 = new StringBuilder("[");
         List<Process> t1List = tier1.getProcesses();
@@ -328,19 +339,19 @@ public class ACS {
         }
 
         t2.append("]");
-        System.out.println(
+        out.println(
                 "Time " + time +
                         " | Tier 1: " + t1 +
                         " | Tier 2: " + t2);
     }
 
-    private static void printResults(List<Process> processes) {
+    private static void printResults(List<Process> processes, PrintStream out) {
         double totalWaiting = 0;
         double totalTurnaround = 0;
         double totalResponse = 0;
-        System.out.println(
+        out.println(
                 "\n==============================================================");
-        System.out.printf(
+        out.printf(
                 "%-10s | %-10s | %-10s | %-10s | %-12s | %-10s | %-10s\n",
                 "Process",
                 "Arrival Time",
@@ -350,7 +361,7 @@ public class ACS {
                 "Waiting Time",
                 "Response Time");
 
-        System.out.println(
+        out.println(
                 "--------------------------------------------------------------");
 
         for (Process p : processes) {
@@ -358,7 +369,7 @@ public class ACS {
             totalTurnaround += p.turnaroundTime;
             totalResponse += p.responseTime;
 
-            System.out.printf(
+            out.printf(
                     "%-10s | %-10d | %-10d | %-10d | %-12d | %-10d | %-10d\n",
                     p.name,
                     p.arrivalTime,
@@ -369,22 +380,22 @@ public class ACS {
                     p.responseTime);
         }
 
-        System.out.println(
+        out.println(
                 "--------------------------------------------------------------");
 
         if (!processes.isEmpty()) {
-            System.out.printf(
+            out.printf(
                     "Average Waiting Time    : %.2f\n",
                     totalWaiting / processes.size());
-            System.out.printf(
+            out.printf(
                     "Average Turnaround Time : %.2f\n",
                     totalTurnaround / processes.size());
-            System.out.printf(
+            out.printf(
                     "Average Response Time   : %.2f\n",
                     totalResponse / processes.size());
         }
 
-        System.out.println(
+        out.println(
                 "==============================================================");
     }
 }

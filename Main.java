@@ -1,12 +1,18 @@
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Scanner;
+import javax.swing.SwingUtilities;
 
 public class Main {
 
-        private static final Scanner scanner = new Scanner(System.in);
+        private static Scanner scanner;
 
         public static void main(String[] args) {
+                if (args.length == 0 || !"--console".equals(args[0])) {
+                        SwingUtilities.invokeLater(() -> new SimulatorGUI().setVisible(true));
+                        return;
+                }
+                scanner = new Scanner(System.in);
 
                 System.out.println("======================================");
                 System.out.println("     CLOUD-CLUSTER CPU SCHEDULER");
